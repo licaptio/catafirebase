@@ -1,11 +1,29 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Lector de Artículos</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lector de Artículos por Clave o Palabra</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .resultados { margin-top: 20px; }
+    .item { margin: 5px 0; border-bottom: 1px solid #ddd; padding: 5px; }
+    .no-encontrado { color: red; }
+    .campo-busqueda { width: 300px; padding: 5px; font-size: 16px; }
+    button { padding: 6px 12px; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🔍 Buscar artículo por clave o palabra clave</h2>
+  <input id="busqueda" class="campo-busqueda" type="text" placeholder="Escribe código o palabra clave..." />
+  <button onclick="buscar()">Buscar</button>
+  <p><small>Presiona <b>F12</b> para enfocar la búsqueda.</small></p>
+
+  <div class="resultados" id="resultados"></div>
+
   <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js';
-    import { getFirestore, doc, getDoc, collection, query, getDocs } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDuevYk_hic8bxIM7y6rKISHA85MKOCMlM",
@@ -19,66 +37,50 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const input = document.getElementById("buscador");
-    const resultado = document.getElementById("resultado");
-    const sugerencias = document.getElementById("sugerencias");
-
-    input.addEventListener("input", async () => {
-      const valor = input.value.trim().toLowerCase();
-      resultado.innerHTML = "";
-      sugerencias.innerHTML = "";
-
-      if (valor === "") return;
-
-      const docRef = doc(db, "articulos", valor);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        mostrarArticulo(snap.data());
-        return;
-      }
-
-      const colRef = collection(db, "articulos");
-      const docs = await getDocs(colRef);
-      let encontrados = 0;
-      for (const docu of docs.docs) {
-        const art = docu.data();
-        if (art.nombre && art.nombre.toLowerCase().includes(valor)) {
-          const li = document.createElement("li");
-          li.textContent = art.nombre;
-          li.style.cursor = "pointer";
-          li.onclick = () => mostrarArticulo(art);
-          sugerencias.appendChild(li);
-          encontrados++;
-        }
-        if (encontrados >= 10) break;
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "F12") {
+        e.preventDefault();
+        document.getElementById("busqueda").focus();
       }
     });
 
-    function mostrarArticulo(art) {
-      resultado.innerHTML = `
-        <h3>${art.nombre}</h3>
-        <p><strong>Clave:</strong> ${art.clave || 'N/A'}</p>
-        <p><strong>Departamento:</strong> ${art.departamento || 'N/A'}</p>
-        <p><strong>Costo:</strong> $${art.costo || 'N/A'}</p>
-        <p><strong>Precios matriz:</strong></p>
-        <ul>
-          <li>Mayoreo: $${art.precios?.matriz?.mayoreo || 'N/A'}</li>
-          <li>Medio mayoreo: $${art.precios?.matriz?.medio_mayoreo || 'N/A'}</li>
-          <li>Público: $${art.precios?.matriz?.publico || 'N/A'}</li>
-        </ul>
-      `;
-      sugerencias.innerHTML = "";
+    window.buscar = async function () {
+      const query = document.getElementById("busqueda").value.trim().toLowerCase();
+      const resultados = document.getElementById("resultados");
+      resultados.innerHTML = "";
+
+      if (!query) return (resultados.innerHTML = "Ingresa un código o palabra clave.");
+
+      const snapshot = await getDocs(collection(db, "articulos"));
+      const encontrados = [];
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const clave = data.clave?.toLowerCase() || "";
+        const nombre = data.nombre?.toLowerCase() || "";
+
+        if (clave.includes(query) || nombre.includes(query)) {
+          encontrados.push(data);
+        }
+      });
+
+      if (encontrados.length === 0) {
+        resultados.innerHTML = '<p class="no-encontrado">No se encontraron resultados.</p>';
+      } else {
+        resultados.innerHTML = "<h3>Resultados:</h3>" + encontrados.map(item => `
+          <div class="item">
+            <strong>${item.clave}</strong>: ${item.nombre}<br/>
+            Costo: $${item.costo} <br/>
+            Departamento: ${item.departamento} <br/>
+            ${item.precios ? `
+              <details><summary>Precios</summary>
+                <pre>${JSON.stringify(item.precios, null, 2)}</pre>
+              </details>
+            ` : ""}
+          </div>
+        `).join('');
+      }
     }
   </script>
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    #sugerencias li:hover { background: #eee; }
-  </style>
-</head>
-<body>
-  <h2>🔍 Buscar artículo por clave o palabra clave</h2>
-  <input type="text" id="buscador" placeholder="Ej. 010001 o huevo rojo" size="40">
-  <ul id="sugerencias"></ul>
-  <div id="resultado"></div>
 </body>
 </html>
