@@ -2,11 +2,56 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Redirigiendo al cargador final...</title>
-  <meta http-equiv="refresh" content="0; URL=catalogo_uploader_modular_FINAL.html" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subir catálogo a Firestore (Final)</title>
 </head>
 <body>
-  <p>Redirigiendo a la versión final del cargador...</p>
+  <h3>📦 Subir catálogo de artículos a Firestore</h3>
+  <input type="file" id="jsonFileInput" accept=".json">
+  <button onclick="subirFirestore()">Subir a Firestore</button>
+  <p id="status"></p>
+
+  <script type="module">
+    import {{ initializeApp }} from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
+    import {{ getFirestore, doc, setDoc }} from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {{
+      apiKey: "AIzaSyDuevYk_hic8bxIM7y6rKISHA85MKOCMlM",
+      authDomain: "catalogo-app-385c9.firebaseapp.com",
+      projectId: "catalogo-app-385c9",
+      storageBucket: "catalogo-app-385c9.appspot.com",
+      messagingSenderId: "218130537886",
+      appId: "1:218130537886:web:90a7e138524ed05881ca8f"
+    }};
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.subirFirestore = async function () {{
+      const input = document.getElementById('jsonFileInput');
+      const status = document.getElementById('status');
+      if (!input.files.length) return alert("Selecciona un archivo JSON");
+      
+      const file = input.files[0];
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      let count = 0;
+      for (const item of data) {{
+        if (!item.codigo) {{
+          console.warn("El artículo no tiene campo 'codigo':", item);
+          continue;
+        }}
+        try {{
+          await setDoc(doc(db, "articulos", item.codigo), item);
+          count++;
+        }} catch (e) {{
+          console.error("Error al subir:", e);
+        }}
+      }}
+      status.textContent = `Proceso completo. Se subieron ${count} artículos.`;
+    }}
+  </script>
 </body>
 </html>
