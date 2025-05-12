@@ -1,32 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Subir catálogo a Firestore con vista de progreso</title>
-  <style>
-    #log {
-      max-height: 400px;
-      overflow-y: auto;
-      background: #f5f5f5;
-      padding: 10px;
-      border: 1px solid #ccc;
-      font-family: monospace;
-    }
-    #log span { display: block; margin-bottom: 2px; }
-  </style>
-</head>
-<body>
-  <h3>📦 Subir catálogo de artículos en lotes de 400</h3>
-  <input type="file" id="jsonFileInput" accept=".json" />
-  <button id="subirBtn">Subir a Firestore</button>
-  <p id="status"></p>
-  <div id="log"></div>
-
+  <meta charset="UTF-8">
+  <title>Lector de Artículos</title>
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js';
+    import { getFirestore, doc, getDoc, collection, query, getDocs } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyDuevYk_hic8bxIM7y6rKISHA85MKOCMlM",
@@ -39,83 +18,67 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    let jsonData = [];
 
-    function objetosSonIguales(a, b) {
-      return JSON.stringify(a) === JSON.stringify(b);
-    }
+    const input = document.getElementById("buscador");
+    const resultado = document.getElementById("resultado");
+    const sugerencias = document.getElementById("sugerencias");
 
-    async function subirLotes() {
-      const input = document.getElementById('jsonFileInput');
-      const status = document.getElementById('status');
-      const log = document.getElementById('log');
-      log.innerHTML = "";
+    input.addEventListener("input", async () => {
+      const valor = input.value.trim().toLowerCase();
+      resultado.innerHTML = "";
+      sugerencias.innerHTML = "";
 
-      if (!jsonData.length) {
-        status.textContent = "❌ No se ha cargado ningún archivo.";
+      if (valor === "") return;
+
+      const docRef = doc(db, "articulos", valor);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        mostrarArticulo(snap.data());
         return;
       }
 
-      const loteTamaño = 400;
-      let total = jsonData.length;
-      let contadorLote = 0;
-      let subidos = 0;
-
-      for (let i = 0; i < total; i += loteTamaño) {
-        const lote = jsonData.slice(i, i + loteTamaño);
-        contadorLote++;
-        status.textContent = `🚀 Lote #${contadorLote} (${i + 1} a ${i + lote.length})`;
-
-        for (const articulo of lote) {
-          if (!articulo.clave) {
-            log.innerHTML += `<span style="color:red">⏭️ Artículo sin clave, omitido.</span>`;
-            continue;
-          }
-
-          const ref = doc(db, "articulos", articulo.clave);
-          try {
-            const snap = await getDoc(ref);
-            if (snap.exists() && objetosSonIguales(snap.data(), articulo)) {
-              log.innerHTML += `<span style="color:gray">⏩ Sin cambios: ${articulo.clave}</span>`;
-              continue;
-            }
-
-            await setDoc(ref, articulo);
-            subidos++;
-            log.innerHTML += `<span style="color:green">✅ Subido/Actualizado: ${articulo.clave}</span>`;
-          } catch (err) {
-            log.innerHTML += `<span style="color:red">❌ Error en ${articulo.clave}: ${err.message}</span>`;
-          }
+      const colRef = collection(db, "articulos");
+      const docs = await getDocs(colRef);
+      let encontrados = 0;
+      for (const docu of docs.docs) {
+        const art = docu.data();
+        if (art.nombre && art.nombre.toLowerCase().includes(valor)) {
+          const li = document.createElement("li");
+          li.textContent = art.nombre;
+          li.style.cursor = "pointer";
+          li.onclick = () => mostrarArticulo(art);
+          sugerencias.appendChild(li);
+          encontrados++;
         }
-
-        status.textContent = `✅ Lote #${contadorLote} terminado. Total subidos: ${subidos}`;
-        log.innerHTML += `<span>⏸️ Esperando 40 segundos...</span><hr>`;
-        await new Promise(res => setTimeout(res, 40000));
+        if (encontrados >= 10) break;
       }
+    });
 
-      status.textContent = `🎉 Proceso completo. Total subidos: ${subidos}`;
-      log.innerHTML += `<span style="font-weight:bold">🎉 Todos los lotes procesados.</span>`;
+    function mostrarArticulo(art) {
+      resultado.innerHTML = `
+        <h3>${art.nombre}</h3>
+        <p><strong>Clave:</strong> ${art.clave || 'N/A'}</p>
+        <p><strong>Departamento:</strong> ${art.departamento || 'N/A'}</p>
+        <p><strong>Costo:</strong> $${art.costo || 'N/A'}</p>
+        <p><strong>Precios matriz:</strong></p>
+        <ul>
+          <li>Mayoreo: $${art.precios?.matriz?.mayoreo || 'N/A'}</li>
+          <li>Medio mayoreo: $${art.precios?.matriz?.medio_mayoreo || 'N/A'}</li>
+          <li>Público: $${art.precios?.matriz?.publico || 'N/A'}</li>
+        </ul>
+      `;
+      sugerencias.innerHTML = "";
     }
-
-    function leerArchivo(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        try {
-          jsonData = JSON.parse(e.target.result);
-          document.getElementById('status').textContent = `📦 Archivo cargado con ${jsonData.length} artículos.`;
-        } catch (err) {
-          alert("❌ Error al leer el archivo JSON.");
-          console.error(err);
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    document.getElementById("jsonFileInput").addEventListener("change", leerArchivo);
-    document.getElementById("subirBtn").addEventListener("click", subirLotes);
   </script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #sugerencias li:hover { background: #eee; }
+  </style>
+</head>
+<body>
+  <h2>🔍 Buscar artículo por clave o palabra clave</h2>
+  <input type="text" id="buscador" placeholder="Ej. 010001 o huevo rojo" size="40">
+  <ul id="sugerencias"></ul>
+  <div id="resultado"></div>
 </body>
 </html>

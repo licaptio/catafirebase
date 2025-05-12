@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Lector de Artículos</title>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js';
+    import { getFirestore, doc, getDoc, collection, query, getDocs } from 'https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDuevYk_hic8bxIM7y6rKISHA85MKOCMlM",
+      authDomain: "catalogo-app-385c9.firebaseapp.com",
+      projectId: "catalogo-app-385c9",
+      storageBucket: "catalogo-app-385c9.appspot.com",
+      messagingSenderId: "218130537886",
+      appId: "1:218130537886:web:90a7e138524ed05881ca8f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const input = document.getElementById("buscador");
+    const resultado = document.getElementById("resultado");
+    const sugerencias = document.getElementById("sugerencias");
+
+    input.addEventListener("input", async () => {
+      const valor = input.value.trim().toLowerCase();
+      resultado.innerHTML = "";
+      sugerencias.innerHTML = "";
+
+      if (valor === "") return;
+
+      const docRef = doc(db, "articulos", valor);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        mostrarArticulo(snap.data());
+        return;
+      }
+
+      const colRef = collection(db, "articulos");
+      const docs = await getDocs(colRef);
+      let encontrados = 0;
+      for (const docu of docs.docs) {
+        const art = docu.data();
+        if (art.nombre && art.nombre.toLowerCase().includes(valor)) {
+          const li = document.createElement("li");
+          li.textContent = art.nombre;
+          li.style.cursor = "pointer";
+          li.onclick = () => mostrarArticulo(art);
+          sugerencias.appendChild(li);
+          encontrados++;
+        }
+        if (encontrados >= 10) break;
+      }
+    });
+
+    function mostrarArticulo(art) {
+      resultado.innerHTML = `
+        <h3>${art.nombre}</h3>
+        <p><strong>Clave:</strong> ${art.clave || 'N/A'}</p>
+        <p><strong>Departamento:</strong> ${art.departamento || 'N/A'}</p>
+        <p><strong>Costo:</strong> $${art.costo || 'N/A'}</p>
+        <p><strong>Precios matriz:</strong></p>
+        <ul>
+          <li>Mayoreo: $${art.precios?.matriz?.mayoreo || 'N/A'}</li>
+          <li>Medio mayoreo: $${art.precios?.matriz?.medio_mayoreo || 'N/A'}</li>
+          <li>Público: $${art.precios?.matriz?.publico || 'N/A'}</li>
+        </ul>
+      `;
+      sugerencias.innerHTML = "";
+    }
+  </script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #sugerencias li:hover { background: #eee; }
+  </style>
+</head>
+<body>
+  <h2>🔍 Buscar artículo por clave o palabra clave</h2>
+  <input type="text" id="buscador" placeholder="Ej. 010001 o huevo rojo" size="40">
+  <ul id="sugerencias"></ul>
+  <div id="resultado"></div>
+</body>
+</html>
