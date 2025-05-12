@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Subir catálogo a Firestore (SDK Modular)</title>
+  <script type="module">
+    // Importar Firebase SDK moderno desde CDN
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // Configuración del proyecto Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqMtZxhXypN1zL1C1yxEWzZi2IcESVC8s",
+      authDomain: "catalogofire.firebaseapp.com",
+      projectId: "catalogofire",
+      storageBucket: "catalogofire.appspot.com",
+      messagingSenderId: "946190549117",
+      appId: "1:946190549117:web:37a287527348b6b95ef114"
+    };
+
+    // Inicializar Firebase y Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Función para cargar y subir JSON
+    window.subirCatalogo = async function () {
+      const input = document.getElementById('jsonFile');
+      const file = input.files[0];
+      const output = document.getElementById('output');
+
+      if (!file) {
+        alert("Selecciona un archivo JSON primero.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function (event) {
+        const data = JSON.parse(event.target.result);
+        let procesados = 0;
+
+        for (const articulo of data) {
+          try {
+            await setDoc(doc(db, "articulos", articulo.clave), {
+              nombre: articulo.nombre,
+              departamento: articulo.departamento,
+              linea: articulo.linea,
+              costo: articulo.costo,
+              precios: articulo.precios
+            }, { merge: true });
+
+            procesados++;
+            output.textContent = `✅ ${procesados} artículos subidos...`;
+          } catch (error) {
+            console.error("❌ Error con clave:", articulo.clave, error);
+          }
+        }
+
+        output.textContent += "\n🎉 Proceso completo.";
+      };
+
+      reader.readAsText(file);
+    }
+  </script>
+</head>
+<body>
+  <h2>📦 Subir catálogo de artículos a Firestore (SDK Modular)</h2>
+  <input type="file" id="jsonFile" />
+  <button onclick="subirCatalogo()">Subir a Firestore</button>
+  <pre id="output"></pre>
+</body>
+</html>
