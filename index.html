@@ -4,19 +4,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Subir catálogo por lotes a Firestore</title>
+  <title>Subir catálogo a Firestore con vista de progreso</title>
+  <style>
+    #log {
+      max-height: 400px;
+      overflow-y: auto;
+      background: #f5f5f5;
+      padding: 10px;
+      border: 1px solid #ccc;
+      font-family: monospace;
+    }
+    #log span { display: block; margin-bottom: 2px; }
+  </style>
 </head>
 <body>
-  <h3>📦 Subir catálogo de artículos a Firestore en lotes de 400</h3>
+  <h3>📦 Subir catálogo de artículos en lotes de 400</h3>
   <input type="file" id="jsonFileInput" accept=".json" />
   <button id="subirBtn">Subir a Firestore</button>
   <p id="status"></p>
+  <div id="log"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
-    import {
-      getFirestore, doc, getDoc, setDoc
-    } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDuevYk_hic8bxIM7y6rKISHA85MKOCMlM",
@@ -29,7 +39,6 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
     let jsonData = [];
 
     function objetosSonIguales(a, b) {
@@ -39,6 +48,9 @@
     async function subirLotes() {
       const input = document.getElementById('jsonFileInput');
       const status = document.getElementById('status');
+      const log = document.getElementById('log');
+      log.innerHTML = "";
+
       if (!jsonData.length) {
         status.textContent = "❌ No se ha cargado ningún archivo.";
         return;
@@ -52,38 +64,37 @@
       for (let i = 0; i < total; i += loteTamaño) {
         const lote = jsonData.slice(i, i + loteTamaño);
         contadorLote++;
-        console.log(`🚀 Iniciando lote #${contadorLote} (${i + 1} a ${i + lote.length})`);
+        status.textContent = `🚀 Lote #${contadorLote} (${i + 1} a ${i + lote.length})`;
 
         for (const articulo of lote) {
           if (!articulo.clave) {
-            console.warn("⏭️ Artículo sin clave:", articulo);
+            log.innerHTML += `<span style="color:red">⏭️ Artículo sin clave, omitido.</span>`;
             continue;
           }
+
           const ref = doc(db, "articulos", articulo.clave);
           try {
             const snap = await getDoc(ref);
-            if (snap.exists()) {
-              const actual = snap.data();
-              if (objetosSonIguales(actual, articulo)) {
-                console.log(`⏩ Sin cambios: ${articulo.clave}`);
-                continue;
-              }
+            if (snap.exists() && objetosSonIguales(snap.data(), articulo)) {
+              log.innerHTML += `<span style="color:gray">⏩ Sin cambios: ${articulo.clave}</span>`;
+              continue;
             }
+
             await setDoc(ref, articulo);
             subidos++;
-            console.log(`✅ Subido/Actualizado: ${articulo.clave}`);
+            log.innerHTML += `<span style="color:green">✅ Subido/Actualizado: ${articulo.clave}</span>`;
           } catch (err) {
-            console.error(`❌ Error en ${articulo.clave}:`, err);
+            log.innerHTML += `<span style="color:red">❌ Error en ${articulo.clave}: ${err.message}</span>`;
           }
         }
 
-        status.textContent = `✅ Lote #${contadorLote} subido. Total subidos hasta ahora: ${subidos}`;
-        console.log(`⏸️ Esperando 40 segundos antes del siguiente lote...`);
+        status.textContent = `✅ Lote #${contadorLote} terminado. Total subidos: ${subidos}`;
+        log.innerHTML += `<span>⏸️ Esperando 40 segundos...</span><hr>`;
         await new Promise(res => setTimeout(res, 40000));
       }
 
       status.textContent = `🎉 Proceso completo. Total subidos: ${subidos}`;
-      console.log("🎉 Todos los lotes procesados.");
+      log.innerHTML += `<span style="font-weight:bold">🎉 Todos los lotes procesados.</span>`;
     }
 
     function leerArchivo(event) {
@@ -95,7 +106,6 @@
         try {
           jsonData = JSON.parse(e.target.result);
           document.getElementById('status').textContent = `📦 Archivo cargado con ${jsonData.length} artículos.`;
-          console.log("Archivo cargado:", jsonData.length, "artículos.");
         } catch (err) {
           alert("❌ Error al leer el archivo JSON.");
           console.error(err);
